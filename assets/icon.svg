@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>DockFeed</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f3b63"/>
+      <stop offset="1" stop-color="#0f1d33"/>
+    </linearGradient>
+    <g id="feed">
+      <rect width="30" height="30" rx="7" fill="#ff8a1f"/>
+      <g fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round">
+        <path d="M8 14.5a7.5 7.5 0 0 1 7.5 7.5"/>
+        <path d="M8 8a14 14 0 0 1 14 14"/>
+      </g>
+      <circle cx="9" cy="21" r="2.6" fill="#fff"/>
+    </g>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <path fill="#3b9df8" d="M30 150H204C210 138 218 128 230 124C234 136 228 150 218 156C210 196 164 220 110 220C62 220 32 192 30 150Z"/>
+  <circle cx="66" cy="176" r="6" fill="#0f1d33"/>
+  <use href="#feed" x="46" y="114"/>
+  <use href="#feed" x="82" y="114"/>
+  <use href="#feed" x="118" y="114"/>
+  <use href="#feed" x="154" y="114"/>
+  <use href="#feed" x="82" y="78"/>
+  <use href="#feed" x="118" y="78"/>
+  <use href="#feed" x="118" y="42"/>
+</svg>

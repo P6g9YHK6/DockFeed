@@ -1,0 +1,29 @@
+version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - misspell
+    - noctx
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+  settings:
+    errcheck:
+      # A failed Close on a response body or connection has nothing left to act on.
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+    revive:
+      rules:
+        # Single-package binary, exported names are for readability, not an API.
+        - name: exported
+          disabled: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
