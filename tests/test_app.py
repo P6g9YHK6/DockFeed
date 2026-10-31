@@ -1,11 +1,14 @@
+import http.client
 import re
+import threading
 import time
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
-from dockfeed.app import App, Config, Target, parse_duration
+from dockfeed.app import App, Config, Server, Target, make_handler, parse_duration
 from dockfeed.feed import Item
 from dockfeed.forge import NotFoundError
 from dockfeed.source import Container, Repo
@@ -163,3 +166,42 @@ def test_host_from_engine_override_and_blocked_info() -> None:
     host, body = footer_host(Config(discover=False), HostDocker(OSError("403 Forbidden")))
     assert host == "" and b"used by rsshub on" not in body and b"used by rsshub" in body
     assert Config.from_env({"HOST_NAME": "nas"}).host_name == "nas"
+
+
+@pytest.fixture
+def server() -> Iterator[str]:
+    a = app_with(None)
+    a.ready = True
+    srv = Server(("127.0.0.1", 0), make_handler(a))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+
+
+def request(
+    addr: str, method: str, path: str = "/healthz", body: bytes | None = None, headers: dict[str, str] | None = None
+) -> tuple[int, bytes]:
+    conn = http.client.HTTPConnection(addr, timeout=5)
+    try:
+        conn.request(method, path, body=body, headers=headers or {})
+        resp = conn.getresponse()
+        return resp.status, resp.read()
+    finally:
+        conn.close()
+
+
+def test_server_only_serves_pages(server: str) -> None:
+    assert request(server, "GET") == (200, b"ok\n")
+    assert request(server, "HEAD") == (200, b"")
+    for method in ("POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CONNECT"):
+        assert request(server, method, body=b"x")[0] == 405
+    assert request(server, "GET", body=b"x")[0] == 400
+    assert request(server, "GET", headers={"Transfer-Encoding": "chunked"})[0] == 400
+    assert request(server, "GET", "/healthz?" + "a" * 3000)[0] == 414
+
+
+def test_self_link_ignores_hostile_host_headers(server: str) -> None:
+    _, body = request(server, "GET", "/", headers={"Host": "feeds.lan:8080", "X-Forwarded-Proto": "https"})
+    assert b'href="https://feeds.lan:8080/"' in body
+    _, body = request(server, "GET", "/", headers={"Host": 'x"><script>', "X-Forwarded-Proto": "javascript"})
+    assert b'href="http://localhost/"' in body and b"script" not in body

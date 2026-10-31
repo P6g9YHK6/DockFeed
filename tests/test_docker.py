@@ -68,3 +68,30 @@ def test_rejects_unknown_scheme() -> None:
 
 def test_hostname_from_info(sock: str) -> None:
     assert DockerClient("unix://" + sock).hostname() == "Tower"
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/containers/create", "/containers/web/exec", "/images/sha256%3A2%2F..%2Fx/json", "/info/../containers/json"],
+)
+def test_refuses_anything_but_the_read_only_calls(sock: str, path: str) -> None:
+    with pytest.raises(ValueError):
+        DockerClient("unix://" + sock)._get(path)
+
+
+@pytest.fixture
+def tcp() -> Iterator[str]:
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"tcp://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+    server.server_close()
+
+
+def test_same_calls_and_allowlist_over_tcp(tcp: str) -> None:
+    client = DockerClient(tcp)
+    assert [c.name for c in client.containers()] == ["web", "moved"]
+    assert client.hostname() == "Tower"
+    with pytest.raises(ValueError):
+        client._get("/containers/web/exec")

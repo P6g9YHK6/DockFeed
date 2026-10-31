@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
 import socket
 from collections.abc import Callable
 from typing import Any
@@ -12,6 +13,11 @@ from urllib.parse import quote, urlsplit
 from .source import Container
 
 TIMEOUT = 30
+MAX_BODY = 64 << 20
+
+# Every Engine API call DockFeed makes. Anything else is refused before it reaches the
+# socket, so the client can't be talked into creating, exec'ing or deleting anything.
+_ALLOWED = re.compile(r"/info|/containers/json\?all=(true|false)|/images/sha256%3A[0-9a-f]+/json")
 
 
 class _UnixConnection(http.client.HTTPConnection):
@@ -41,11 +47,15 @@ class DockerClient:
             raise ValueError(f"unsupported DOCKER_HOST scheme {u.scheme!r}")
 
     def _get(self, path: str) -> Any:
+        if not _ALLOWED.fullmatch(path):
+            raise ValueError(f"docker {path}: not an allowed read-only call")
         conn = self._connect()
         try:
             conn.request("GET", path)
             resp = conn.getresponse()
-            body = resp.read()
+            body = resp.read(MAX_BODY + 1)
+            if len(body) > MAX_BODY:
+                raise OSError(f"docker {path}: response over {MAX_BODY >> 20} MB")
             if resp.status != 200:
                 raise OSError(f"docker {path}: {resp.status} {resp.reason}")
             return json.loads(body)
@@ -64,9 +74,9 @@ class DockerClient:
             # The listing shows a bare digest when the tag has since moved to a newer image.
             if image.startswith("sha256:"):
                 try:
-                    tags = self._get("/images/" + quote(c["ImageID"]) + "/json").get("RepoTags") or []
+                    tags = self._get("/images/" + quote(c["ImageID"], safe="") + "/json").get("RepoTags") or []
                     image = tags[0] if tags else image
-                except OSError:
+                except (OSError, ValueError):
                     pass
             out.append(Container(name, image, c.get("Labels") or {}))
         return out

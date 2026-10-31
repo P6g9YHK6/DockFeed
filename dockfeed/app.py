@@ -295,24 +295,85 @@ class App:
         return render_atom(self.cfg.feed_title, self_url, entries[: self.cfg.max_items])
 
 
+# The server only ever hands out pages. Anything that carries data in (other methods,
+# request bodies, oversized URLs) is refused before routing, so no bug further down
+# can turn a request into input that ends up anywhere near the Docker socket.
+MAX_URL = 2048
+MAX_CONNECTIONS = 64
+_HOST = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?|\[[0-9A-Fa-f:.]+\](:\d{1,5})?")
+
+
+class Server(ThreadingHTTPServer):
+    """Drops connections past MAX_CONNECTIONS instead of spawning a thread for each."""
+
+    daemon_threads = True
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
+
+
 def make_handler(app: App) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server_version = f"dockfeed/{__version__}"
+        timeout = 15
+        _head = False
+
+        def parse_request(self) -> bool:
+            if not super().parse_request():
+                return False
+            self.close_connection = True
+            if self.command not in ("GET", "HEAD"):
+                self.send_error(405)
+            elif self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0") != "0":
+                self.send_error(400, "request bodies are not accepted")
+            elif len(self.path) > MAX_URL:
+                self.send_error(414)
+            else:
+                return True
+            return False
+
+        def end_headers(self) -> None:
+            if self.command and self.command not in ("GET", "HEAD"):
+                self.send_header("Allow", "GET, HEAD")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            super().end_headers()
 
         def _send(self, code: int, body: bytes, ctype: str) -> None:
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            if not self._head:
+                self.wfile.write(body)
+
+        def do_HEAD(self) -> None:
+            self._head = True
+            self.do_GET()
 
         def do_GET(self) -> None:
             u = urlsplit(self.path)
             if u.path in ("/", "/feed.atom"):
                 base = app.cfg.public_url
                 if not base:
+                    # Both headers are client controlled and end up in the feed, so only take sane values.
                     proto = self.headers.get("X-Forwarded-Proto", "http")
-                    base = f"{proto}://{self.headers.get('Host', 'localhost')}"
+                    host = self.headers.get("Host", "")
+                    proto = proto if proto in ("http", "https") else "http"
+                    host = host if _HOST.fullmatch(host) else "localhost"
+                    base = f"{proto}://{host}"
                 body = app.feed(parse_qs(u.query), base + self.path)
                 if body is None:
                     self._send(503, b"first scan still running\n", "text/plain")
@@ -376,8 +437,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     stop = threading.Event()
-    server = ThreadingHTTPServer(cfg.bind, make_handler(app))
-    server.daemon_threads = True
+    server = Server(cfg.bind, make_handler(app))
 
     def shutdown(*_: object) -> None:
         stop.set()

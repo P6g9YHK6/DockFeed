@@ -7,6 +7,12 @@ services:
       - 8080:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    # DockFeed writes nothing to disk and needs no capabilities.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       REFRESH_INTERVAL: 1h
       # EXCLUDE: '(?i)-rc|beta|alpha|nightly'

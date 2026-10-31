@@ -24,6 +24,11 @@ services:
       - 8080:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 ```
 
 Then subscribe to `http://<host>:8080/feed.atom`. The first scan takes a few seconds; `/status` shows what was found.
@@ -116,7 +121,11 @@ Filters run before the staleness check, so a project that only ships filtered-ou
 
 ## Security
 
-The socket is only used for three read-only calls (list containers, inspect an image, read the host name from `/info`). Mount it `:ro`, or better, point `DOCKER_HOST` at a socket proxy that only allows `CONTAINERS`, `IMAGES` and `INFO` (leave `INFO` off and set `HOST_NAME` instead if you prefer):
+DockFeed makes exactly three calls to the Engine API, all `GET`: `/containers/json`, `/images/<digest>/json` and `/info`. The Docker client checks every request against that list before it touches the socket and refuses anything else, so no other endpoint (create, exec, delete, logs...) can be reached through DockFeed's code.
+
+The web server only hands out pages: `GET` and `HEAD` are the only methods it accepts (anything else gets a 405), requests with a body get a 400, URLs over 2 KB get a 414, idle connections time out after 15 seconds and at most 64 are served at once. The `Host` and `X-Forwarded-Proto` headers only make it into the feed's self link when they look like a real host and `http`/`https`. Nothing a client sends is ever passed to Docker.
+
+Note that `:ro` on the socket mount doesn't make the API read-only, it only stops the socket file being replaced. The allowlist above is what limits the calls. If you want that enforced outside DockFeed too, point `DOCKER_HOST` at a socket proxy that only allows `CONTAINERS`, `IMAGES` and `INFO` (leave `INFO` off and set `HOST_NAME` instead if you prefer):
 
 ```yaml
   socket-proxy:
