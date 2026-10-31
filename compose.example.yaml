@@ -1,0 +1,12 @@
+services:
+  dockfeed:
+    image: ghcr.io/p6g9yhk6/dockfeed:latest
+    container_name: dockfeed
+    restart: unless-stopped
+    ports:
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      REFRESH_INTERVAL: 1h
+      # EXCLUDE: '(?i)-rc|beta|alpha|nightly'

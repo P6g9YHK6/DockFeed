@@ -1,0 +1,27 @@
+[project]
+name = "dockfeed"
+description = "One Atom feed with the release notes of every container running on a Docker host"
+license = "MPL-2.0"
+requires-python = ">=3.12"
+dynamic = ["version"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "N", "A", "BLE", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["dockfeed"]
+
+[tool.coverage.report]
+fail_under = 80
+skip_covered = false
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
