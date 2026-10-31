@@ -1,27 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <title>DockFeed</title>
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1f3b63"/>
-      <stop offset="1" stop-color="#0f1d33"/>
-    </linearGradient>
-    <g id="feed">
-      <rect width="30" height="30" rx="7" fill="#ff8a1f"/>
-      <g fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round">
-        <path d="M8 14.5a7.5 7.5 0 0 1 7.5 7.5"/>
-        <path d="M8 8a14 14 0 0 1 14 14"/>
-      </g>
-      <circle cx="9" cy="21" r="2.6" fill="#fff"/>
-    </g>
-  </defs>
-  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
-  <path fill="#3b9df8" d="M30 150H204C210 138 218 128 230 124C234 136 228 150 218 156C210 196 164 220 110 220C62 220 32 192 30 150Z"/>
-  <circle cx="66" cy="176" r="6" fill="#0f1d33"/>
-  <use href="#feed" x="46" y="114"/>
-  <use href="#feed" x="82" y="114"/>
-  <use href="#feed" x="118" y="114"/>
-  <use href="#feed" x="154" y="114"/>
-  <use href="#feed" x="82" y="78"/>
-  <use href="#feed" x="118" y="78"/>
-  <use href="#feed" x="118" y="42"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>DockFeed</title><rect x="82" y="52" width="40" height="40" rx="9" fill="#ff8a1f" stroke="#1b2433" stroke-width="6"/><g fill="none" stroke="#fff" stroke-width="2.47" stroke-linecap="round">
+    <path d="M93 70.55a10.450000000000001 10.450000000000001 0 0 1 10.450000000000001 10.450000000000001"/>
+    <path d="M93 62a19 19 0 0 1 19 19"/></g>
+    <circle cx="94.9" cy="79.1" r="2.09" fill="#fff"/><rect x="126" y="52" width="40" height="40" rx="9" fill="#ff8a1f" stroke="#1b2433" stroke-width="6"/><g fill="none" stroke="#fff" stroke-width="2.47" stroke-linecap="round">
+    <path d="M137 70.55a10.450000000000001 10.450000000000001 0 0 1 10.450000000000001 10.450000000000001"/>
+    <path d="M137 62a19 19 0 0 1 19 19"/></g>
+    <circle cx="138.9" cy="79.1" r="2.09" fill="#fff"/><rect x="104" y="10" width="40" height="40" rx="9" fill="#ff8a1f" stroke="#1b2433" stroke-width="6"/><g fill="none" stroke="#fff" stroke-width="2.47" stroke-linecap="round">
+    <path d="M115 28.55a10.450000000000001 10.450000000000001 0 0 1 10.450000000000001 10.450000000000001"/>
+    <path d="M115 20a19 19 0 0 1 19 19"/></g>
+    <circle cx="116.9" cy="37.1" r="2.09" fill="#fff"/>
+  <g stroke="#1b2433" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+    <path fill="#4fc3f7" d="M38 160C38 108 84 84 140 88C178 91 202 106 210 128C214 112 220 96 236 86C246 102 242 124 226 136C226 196 184 236 126 236C70 236 38 206 38 160Z"/>
+    <path fill="#b3e9ff" stroke="none" d="M50 186C66 214 96 228 128 228C166 228 196 212 214 184C186 204 92 210 50 186Z"/>
+    <path fill="none" d="M50 186C92 210 186 204 214 184" stroke-width="4" opacity=".55"/>
+    <circle cx="128" cy="156" r="32" fill="#fff"/>
+    <path fill="none" d="M60 172Q70 190 92 186"/>
+  </g>
+  <path d="M176 170q14 6 22-4" fill="none" stroke="#1b2433" stroke-width="3" opacity=".35" stroke-linecap="round"/>
+
+  <circle cx="126" cy="142" r="17" fill="#1b2433"/>
+  <circle cx="120" cy="136" r="5.5" fill="#fff"/><circle cx="160" cy="22" r="17" fill="#e53935" stroke="#fff" stroke-width="4"/>
+  <path d="M154 16L161 11H165V33H159V19L154 22Z" fill="#fff"/>
 </svg>
