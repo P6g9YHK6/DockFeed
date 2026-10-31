@@ -19,6 +19,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path.startswith("/containers/json"):
             body = json.dumps(CONTAINERS).encode()
+        elif self.path == "/info":
+            body = json.dumps({"Name": "Tower"}).encode()
         elif self.path == "/images/sha256%3A2/json" or self.path == "/images/sha256:2/json":
             body = json.dumps({"RepoTags": ["redis:alpine"]}).encode()
         else:
@@ -62,3 +64,7 @@ def test_rejects_unknown_scheme() -> None:
     with pytest.raises(ValueError):
         DockerClient("ssh://host")
     DockerClient("tcp://socket-proxy:2375")
+
+
+def test_hostname_from_info(sock: str) -> None:
+    assert DockerClient("unix://" + sock).hostname() == "Tower"

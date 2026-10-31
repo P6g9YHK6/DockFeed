@@ -134,3 +134,32 @@ def test_cap_applies_after_container_filter() -> None:
     a.refresh()
     assert b"quiet: q1" not in (a.feed({}, "http://x/") or b"")
     assert b"quiet: q1" in (a.feed({"container": ["quiet"]}, "http://x/") or b"")
+
+
+class HostDocker:
+    def __init__(self, host: str | Exception) -> None:
+        self.host = host
+
+    def hostname(self) -> str:
+        if isinstance(self.host, Exception):
+            raise self.host
+        return self.host
+
+    def containers(self, include_stopped: bool = False) -> list[Container]:
+        return [Container("rsshub", "ghcr.io/diygod/rsshub", {})]
+
+
+def footer_host(cfg: Config, docker: HostDocker) -> tuple[str, bytes]:
+    a = App(cfg, docker=docker, fetcher=FakeFetcher([item("v1", 1)], []))  # type: ignore[arg-type]
+    a.refresh()
+    return a.status["host"], a.feed({}, "http://x/") or b""
+
+
+def test_host_from_engine_override_and_blocked_info() -> None:
+    host, body = footer_host(Config(discover=False), HostDocker("Tower"))
+    assert host == "Tower" and b"used by rsshub on Tower" in body
+    host, body = footer_host(Config(discover=False, host_name="nas"), HostDocker("Tower"))
+    assert host == "nas" and b"used by rsshub on nas" in body
+    host, body = footer_host(Config(discover=False), HostDocker(OSError("403 Forbidden")))
+    assert host == "" and b"used by rsshub on" not in body and b"used by rsshub" in body
+    assert Config.from_env({"HOST_NAME": "nas"}).host_name == "nas"

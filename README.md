@@ -46,7 +46,7 @@ Then subscribe to `http://<host>:8080/feed.atom`. The first scan takes a few sec
 | `/status` | JSON: every repo, how it was resolved, errors, and which containers couldn't be resolved |
 | `/healthz` | Liveness |
 
-Each entry is titled `<container>: <release>` (or `<container> (commit): <message>`), keeps the original release notes, and ends with a line linking the repo, the containers using it, and the version currently running when the image says so. Containers are also set as Atom categories, so readers that filter on tags can use them.
+Each entry is titled `<container>: <release>` (or `<container> (commit): <message>`), keeps the original release notes, and ends with a line linking the repo, the containers using it and the host they run on, and the version currently running when the image says so, e.g. `github.com/DIYgod/RSSHub · used by rsshub on Tower · running 2026-10-31`. Containers are also set as Atom categories, so readers that filter on tags can use them.
 
 ## How a container is matched to a repo
 
@@ -76,6 +76,8 @@ In the default `auto` mode, DockFeed uses the repo's releases, and switches to c
 - the newest release is older than `STALE_RELEASE_AFTER` (one year by default)
 
 GitHub and GitLab list tags in place of releases when a repo only tags, so tag-only projects are still treated as releasing.
+
+Commit entries are titled with the commit's first line and show the full message, line breaks included, whatever forge it comes from.
 
 Supported forges: GitHub, GitLab (gitlab.com and self-hosted), Gitea, Forgejo and Codeberg. Self-hosted instances are detected through their API.
 
@@ -108,12 +110,13 @@ Filters run before the staleness check, so a project that only ships filtered-ou
 | `LOG_LEVEL` | `INFO` | `DEBUG` also logs every HTTP request |
 | `DISCOVER` | `true` | Steps 5 to 8 above |
 | `GITHUB_TOKEN` | | Optional, any token with no scopes. Raises the GitHub API limit used by steps 7 and 8 from 60 to 5000 requests an hour |
+| `HOST_NAME` | the Docker host's name | Shown in each entry as "used by x on HOST_NAME". Read from the engine (`/info`) by default, since inside a container `$HOSTNAME` is the container ID |
 | `FEED_TITLE` | `DockFeed` | |
 | `PUBLIC_URL` | | Base URL for the feed's self link when behind a proxy |
 
 ## Security
 
-The socket is only used for two read-only calls (list containers, inspect an image). Mount it `:ro`, or better, point `DOCKER_HOST` at a socket proxy that only allows `CONTAINERS` and `IMAGES`:
+The socket is only used for three read-only calls (list containers, inspect an image, read the host name from `/info`). Mount it `:ro`, or better, point `DOCKER_HOST` at a socket proxy that only allows `CONTAINERS`, `IMAGES` and `INFO` (leave `INFO` off and set `HOST_NAME` instead if you prefer):
 
 ```yaml
   socket-proxy:
@@ -121,6 +124,7 @@ The socket is only used for two read-only calls (list containers, inspect an ima
     environment:
       CONTAINERS: 1
       IMAGES: 1
+      INFO: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
   dockfeed:

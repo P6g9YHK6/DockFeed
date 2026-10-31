@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import __version__
 from .discover import Discoverer
 from .docker import DockerClient
-from .feed import FeedEntry, Item, render_atom
+from .feed import FeedEntry, Item, commit_message, render_atom
 from .forge import Fetcher, NotFoundError
 from .source import LABEL_PREFIX, Container, Repo, resolve_repo
 
@@ -64,6 +64,7 @@ class Config:
     include_stopped: bool = False
     discover: bool = True
     github_token: str = ""
+    host_name: str = ""
     exclude: re.Pattern[str] | None = None
     public_url: str = ""
 
@@ -79,6 +80,7 @@ class Config:
             c.feed_title = get("FEED_TITLE", c.feed_title)
             c.public_url = get("PUBLIC_URL", "").rstrip("/")
             c.github_token = get("GITHUB_TOKEN", "")
+            c.host_name = get("HOST_NAME", "")
             c.interval = parse_duration(get("REFRESH_INTERVAL", "1h"))
             c.stale_after = parse_duration(get("STALE_RELEASE_AFTER", "365d"))
             positive = [
@@ -141,6 +143,8 @@ class App:
         self.entries: list[FeedEntry] = []
         self.status: dict[str, Any] = {"version": __version__, "last_scan": None}
         self.ready = False
+        self.host = cfg.host_name
+        self._host_warned = False
 
     def targets(self, containers: list[Container]) -> tuple[dict[str, Target], dict[str, str], list[str]]:
         targets: dict[str, Target] = {}
@@ -212,11 +216,13 @@ class App:
             rs["error"] = str(e) or type(e).__name__
             log.warning("fetch failed repo=%s err=%s", t.repo, rs["error"])
         items = items[: self.cfg.items_per_repo]
+        if rs.get("kind") == "commit":
+            items = [commit_message(i) for i in items]
         label = t.containers[0] if len(t.containers) == 1 else t.repo.name
         rs["items"] = len(items)
         if items:
             rs["latest"] = items[0].updated.isoformat()
-        entries = [FeedEntry(i, label, rs.get("kind", ""), t.repo, t.containers, t.running) for i in items]
+        entries = [FeedEntry(i, label, rs.get("kind", ""), t.repo, t.containers, t.running, self.host) for i in items]
         return entries, rs
 
     def refresh(self) -> None:
@@ -229,6 +235,7 @@ class App:
             with self._lock:
                 self.status["scan_error"] = str(e)
             return
+        self.host = self.cfg.host_name or self._engine_hostname()
         targets, unresolved, ignored = self.targets(containers)
         with ThreadPoolExecutor(self.cfg.concurrency) as pool:
             results = list(pool.map(self._fetch, targets.values()))
@@ -240,6 +247,7 @@ class App:
             self.entries = entries
             self.status = {
                 "version": __version__,
+                "host": self.host,
                 "last_scan": started_at,
                 "repos": repos,
                 "unresolved": unresolved,
@@ -254,6 +262,16 @@ class App:
             len(entries),
             time.monotonic() - start,
         )
+
+    def _engine_hostname(self) -> str:
+        try:
+            return self.docker.hostname()
+        except (OSError, ValueError, AttributeError) as e:
+            # Socket proxies often block /info; the feed just goes without a host then.
+            if not self._host_warned:
+                log.warning("could not read the host name from /info (%s); set HOST_NAME or allow INFO on the proxy", e)
+                self._host_warned = True
+            return ""
 
     def loop(self, stop: threading.Event) -> None:
         while not stop.is_set():

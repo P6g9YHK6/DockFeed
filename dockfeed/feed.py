@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import calendar
 import html
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
@@ -40,6 +41,7 @@ class FeedEntry:
     repo: Repo
     containers: list[str] = field(default_factory=list)
     running: str = ""
+    host: str = ""
 
 
 def _date(entry: Any) -> datetime:
@@ -89,6 +91,25 @@ def parse_feed(data: bytes) -> list[Item]:
     return items
 
 
+_HTML_TAG = re.compile(r"<(pre|p|div|br|a|ul|ol|li|code|h\d)\b", re.I)
+
+
+def commit_message(item: Item) -> Item:
+    """Make a commit entry's body the full message, the same way for every forge.
+
+    GitHub sends it as HTML already. Forgejo and Gitea send plain text, which would lose its
+    line breaks rendered as HTML, and GitLab sends only the lines after the subject.
+    """
+    body = item.content.strip()
+    if _HTML_TAG.search(body):
+        return item
+    text = html.unescape(body)
+    subject = item.title.split("\n", 1)[0].strip()
+    if subject and not text.startswith(subject):
+        text = f"{subject}\n\n{text}".strip()
+    return replace(item, content=f'<pre style="white-space: pre-wrap;">{html.escape(text)}</pre>')
+
+
 def _headline(e: FeedEntry) -> str:
     if e.kind == "commit":
         # Commit titles can be whole messages; the first line is enough for a headline.
@@ -100,7 +121,7 @@ def _headline(e: FeedEntry) -> str:
 def _footer(e: FeedEntry) -> str:
     parts = [
         f'<a href="{html.escape(e.repo.url)}">{html.escape(str(e.repo))}</a>',
-        "used by " + html.escape(", ".join(e.containers)),
+        "used by " + html.escape(", ".join(e.containers)) + (" on " + html.escape(e.host) if e.host else ""),
     ]
     if e.running:
         parts.append("running " + html.escape(e.running))

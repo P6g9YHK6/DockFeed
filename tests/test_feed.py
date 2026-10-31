@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from dockfeed.feed import FeedEntry, Item, parse_feed, render_atom
+from dockfeed.feed import FeedEntry, Item, commit_message, parse_feed, render_atom
 from dockfeed.source import Repo
 
 ATOM = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -65,13 +65,29 @@ def test_render_round_trip() -> None:
         repo=Repo("github.com", "a/b"),
         containers=["app"],
         running="v1",
+        host="Tower",
     )
     out = render_atom("Test feed", "http://localhost/feed.atom", [entry])
     (item,) = parse_feed(out)
     assert item.title == "app (commit): fix things"
     assert "hi &amp; bye" in item.content
+    assert "used by app on Tower" in item.content
     assert "running v1" in item.content
 
 
 def test_render_empty_feed_is_valid() -> None:
     assert parse_feed(render_atom("Empty", "http://x/", [])) == []
+
+
+def test_commit_message_is_full_and_keeps_line_breaks() -> None:
+    # GitHub: already HTML, left alone.
+    gh = Item("1", "fix: x", content='<pre style="white-space: pre-wrap; width: 81ex;">fix: x\n\nbody</pre>')
+    assert commit_message(gh) == gh
+    # Forgejo/Gitea: plain text with the subject, wrapped so line breaks survive.
+    gitea = commit_message(Item("2", "feat: y (#1)", content="feat: y (#1)\n\n## Checklist\n- a <b>"))
+    assert gitea.content == '<pre style="white-space: pre-wrap;">feat: y (#1)\n\n## Checklist\n- a &lt;b&gt;</pre>'
+    # GitLab: body without the subject, or nothing for a one-line commit.
+    assert (
+        "only log errors\n\nCloses #696" in commit_message(Item("3", "only log errors", content="Closes #696")).content
+    )
+    assert ">only log errors</pre>" in commit_message(Item("4", "only log errors")).content

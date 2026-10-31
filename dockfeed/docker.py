@@ -52,6 +52,10 @@ class DockerClient:
         finally:
             conn.close()
 
+    def hostname(self) -> str:
+        """The engine host's name, which the container can't see itself ($HOSTNAME is the container ID)."""
+        return str(self._get("/info").get("Name") or "")
+
     def containers(self, include_stopped: bool = False) -> list[Container]:
         out = []
         for c in self._get(f"/containers/json?all={str(include_stopped).lower()}"):
