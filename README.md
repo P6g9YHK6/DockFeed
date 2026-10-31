@@ -10,7 +10,7 @@ One Atom feed with the release notes of everything running on your Docker host.
 
 DockFeed reads the Docker socket, works out which source repository each container comes from, and merges their release feeds into a single feed you can subscribe to in any reader. When a project doesn't publish releases (or stopped tagging long ago), it follows the commits on the default branch instead.
 
-No database, no required API tokens, no config file. Plain Python with a single dependency (feedparser), for amd64, arm64 and armv7.
+No database, no required API tokens, no config file. Plain Python with a single dependency (feedparser), shipped as a 24 MB `scratch` image (about 9 MB to download) for amd64, arm64 and armv7.
 
 ## Quick start
 
@@ -154,6 +154,8 @@ DOCKER_HOST=unix:///tmp/remote.sock python -m dockfeed --once
 ```
 
 The code is split by concern, all under `dockfeed/`: `docker.py` (socket client), `source.py` (label and image name rules), `discover.py` (network lookups for unlabeled images), `forge.py` (GitHub, GitLab, Gitea and Forgejo feeds), `feed.py` (Atom and RSS in, Atom out) and `app.py` (config, scan loop, HTTP). Apart from feedparser everything is the standard library.
+
+The image is built from `python:3.14-alpine`, then `docker/slim.sh` copies only what DockFeed needs onto `scratch`: the interpreter, the stdlib minus tests, GUI, REPL, database and other unused modules (as bytecode only), the shared libraries those link against, and the CA bundle. A smoke stage (`docker/smoke.py`) runs inside that filesystem during the build, so pruning too much fails the build rather than the container. If a new import fails in the image only, the module was pruned: take it out of the `rm` lists in `slim.sh`. Tracebacks in the image show no source lines, since only bytecode ships.
 
 `requirements.lock` is the hash-pinned resolution of `requirements.txt` that the image installs. After changing `requirements.txt`, regenerate it with:
 

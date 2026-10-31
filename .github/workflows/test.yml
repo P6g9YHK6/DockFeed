@@ -62,6 +62,25 @@ jobs:
       - name: Run tests
         run: pytest -v --cov --cov-report=term-missing
 
+  # Builds the image (amd64 only, not pushed) so a base image bump that breaks
+  # the pruned runtime fails here: the Dockerfile's smoke stage runs DockFeed
+  # inside the final filesystem.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+
   lock-freshness:
     runs-on: ubuntu-latest
     steps:
