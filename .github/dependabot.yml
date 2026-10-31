@@ -1,0 +1,30 @@
+version: 2
+
+# Grouped per ecosystem so a week of bumps is one PR, merged by
+# dependabot-automerge.yml once lint and tests pass.
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # requirements.lock is compiled for 3.14, so a Python minor bump stays a
+      # deliberate manual change (bump the lock and the CI matrix with it).
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

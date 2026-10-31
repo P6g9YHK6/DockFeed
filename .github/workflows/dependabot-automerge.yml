@@ -1,0 +1,103 @@
+name: Dependabot auto-merge
+
+# Merges Dependabot PRs once "Lint and test" passes on them. Runs off
+# workflow_run instead of pull_request because a pull_request run triggered by
+# Dependabot only gets a read-only token and can't merge anything.
+on:
+  workflow_run:
+    workflows: ["Lint and test"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  # Dependabot bumps requirements.txt but doesn't know how to regenerate a
+  # uv-compiled requirements.lock, so lock-freshness fails on every pip PR.
+  # Regenerate it here, rerun the tests on the new commit and merge from this
+  # job. A push made with GITHUB_TOKEN doesn't trigger workflows, hence the
+  # explicit dispatch, and a run dispatched by GITHUB_TOKEN doesn't fire
+  # workflow_run either, so the merge job below would never see it.
+  refresh-lock:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/pip/')
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Regenerate lock file
+        run: uv pip compile requirements.txt -o requirements.lock --python-version 3.14 --generate-hashes
+
+      - name: Commit and retest
+        run: |
+          if git diff --quiet requirements.lock; then
+            echo "Lock already up to date, the failure is something else"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "regenerate requirements.lock"
+          git push origin "HEAD:$BRANCH"
+          sha=$(git rev-parse HEAD)
+          gh workflow run test.yml --ref "$BRANCH"
+
+          run=""
+          for _ in $(seq 1 30); do
+            run=$(gh run list --workflow test.yml --branch "$BRANCH" --event workflow_dispatch \
+              --json databaseId,headSha -q ".[] | select(.headSha == \"$sha\") | .databaseId" | head -n1)
+            [ -n "$run" ] && break
+            sleep 10
+          done
+          if [ -z "$run" ]; then
+            echo "::error::Dispatched test run never showed up"
+            exit 1
+          fi
+          gh run watch "$run" --exit-status
+
+          pr=$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number')
+          if [ -z "$pr" ]; then
+            echo "No open Dependabot PR into main for this branch, nothing to do"
+            exit 0
+          fi
+          gh pr merge "$pr" --squash --delete-branch
+          gh workflow run docker-publish.yml --ref main
+
+  merge:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Merge PR
+        run: |
+          pr=$(gh pr list --head '${{ github.event.workflow_run.head_branch }}' --base main --state open --json number -q '.[0].number')
+          if [ -z "$pr" ]; then
+            echo "No open Dependabot PR into main for this branch, nothing to do"
+            exit 0
+          fi
+          gh pr merge "$pr" --squash --delete-branch
+
+      # A merge done with GITHUB_TOKEN doesn't fire push workflows, so the
+      # image wouldn't get rebuilt on its own.
+      - name: Rebuild image
+        run: gh workflow run docker-publish.yml --ref main
