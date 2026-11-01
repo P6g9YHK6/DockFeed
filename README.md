@@ -6,9 +6,11 @@
 [![Publish Docker image](https://github.com/P6g9YHK6/DockFeed/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/P6g9YHK6/DockFeed/actions/workflows/docker-publish.yml)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](LICENSE)
 
-One Atom feed with the release notes of everything running on your Docker host.
+One Atom/RSS feed with the release notes of everything running on your Docker host.
 
-DockFeed reads the Docker socket, works out which source repository each container comes from, and merges their release feeds into a single feed you can subscribe to in any reader. When a project doesn't publish releases (or stopped tagging long ago), it follows the commits on the default branch instead.
+DockFeed reads the Docker socket, works out which source repository each container comes from, and merges their release feeds into a single Atom feed you can subscribe to in any RSS reader.
+
+Complementary to Watchtower (auto-updates) and Diun (notifications), DockFeed gives you the full release notes in one place so you stay informed on your terms.
 
 No database, no required API tokens, no config file. Plain Python with a single dependency (feedparser), shipped as a 24 MB `scratch` image (about 9 MB to download) for amd64, arm64 and armv7.
 
@@ -31,7 +33,13 @@ services:
       - no-new-privileges:true
 ```
 
-Then subscribe to `http://<host>:8080/feed.atom`. The first scan takes a few seconds; `/status` shows what was found.
+### Unraid (Community Applications)
+
+DockFeed is available in [Community Applications](https://unraid.net/community/apps) (search "DockFeed").
+
+The template mounts the Docker socket read-only, drops all capabilities, and runs read-only. A secure, zero-config install that fits right alongside Watchtower or Diun on your Unraid server.
+
+Then subscribe to `http://<host>:8080/feed.atom` in your RSS/Atom reader. The first scan takes a few seconds; `/status` shows what was found.
 
 ### Image tags
 
@@ -45,11 +53,13 @@ Then subscribe to `http://<host>:8080/feed.atom`. The first scan takes a few sec
 
 | Path | What |
 | --- | --- |
-| `/feed.atom` (or `/`) | The merged feed, newest first |
+| `/feed.atom` (or `/`) | The merged Atom feed, newest first |
 | `/feed.atom?container=sonarr,radarr` | Only these containers |
 | `/feed.atom?kind=release` | Drop the commit fallbacks, `kind=commit` for the opposite |
 | `/status` | JSON: every repo, how it was resolved, errors, and which containers couldn't be resolved |
 | `/healthz` | Liveness |
+
+Subscribe with any RSS/Atom reader — the feed works with both.
 
 Each entry is titled `<container>: <release>` (or `<container> (commit): <message>`), keeps the original release notes, and ends with a line linking the repo, the containers using it and the host they run on, and the version currently running when the image says so, e.g. `github.com/DIYgod/RSSHub · used by rsshub on Tower · running 2026-10-31`. Containers are also set as Atom categories, so readers that filter on tags can use them.
 

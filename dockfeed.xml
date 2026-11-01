@@ -1,0 +1,180 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>DockFeed</Name>
+  <Repository>ghcr.io/p6g9yhk6/dockfeed:latest</Repository>
+  <Registry>https://github.com/P6g9YHK6/DockFeed/pkgs/container/dockfeed</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/P6g9YHK6/DockFeed/issues</Support>
+  <Project>https://github.com/P6g9YHK6/DockFeed</Project>
+  <ReadMe>https://github.com/P6g9YHK6/DockFeed/blob/main/README.md</ReadMe>
+  <Overview>One Atom feed with the release notes of everything running on your Docker host. DockFeed reads the Docker socket, works out which source repository each container comes from, and merges their release feeds into a single feed you can subscribe to in any reader. When a project doesn't publish releases (or stopped tagging long ago), it follows the commits on the default branch instead. No database, no required API tokens, no config file. Plain Python with a single dependency (feedparser), shipped as a 24 MB scratch image (about 9 MB to download) for amd64, arm64 and armv7.</Overview>
+  <Category>Tools:Monitoring Utilities:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/feed.atom</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/P6g9YHK6/DockFeed/main/dockfeed.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/P6g9YHK6/DockFeed/main/assets/icon.png</Icon>
+  <ExtraParams>--restart unless-stopped --read-only --cap-drop=ALL --security-opt=no-new-privileges:true</ExtraParams>
+  <DateInstalled/>
+  <Config
+    Name="WebUI Port"
+    Target="8080"
+    Default="8080"
+    Mode="tcp"
+    Description="Port the DockFeed web interface listens on."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">8080</Config>
+  <Config
+    Name="Docker Socket"
+    Target="/var/run/docker.sock"
+    Default="/var/run/docker.sock"
+    Mode="ro"
+    Description="Docker socket for reading container information. Mount read-only for security."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/var/run/docker.sock</Config>
+  <Config
+    Name="Listen Address"
+    Target="LISTEN_ADDR"
+    Default=":8080"
+    Mode=""
+    Description="Address and port to listen on (e.g., :8080, 0.0.0.0:8080)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">:8080</Config>
+  <Config
+    Name="Refresh Interval"
+    Target="REFRESH_INTERVAL"
+    Default="1h"
+    Mode=""
+    Description="How often to scan containers and update the feed (e.g., 90s, 30m, 1h30m, 1d)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">1h</Config>
+  <Config
+    Name="Stale Release Threshold"
+    Target="STALE_RELEASE_AFTER"
+    Default="365d"
+    Mode=""
+    Description="Fall back to commits when the newest release is older than this (e.g., 365d, 0 to never fall back)."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">365d</Config>
+  <Config
+    Name="Items Per Repo"
+    Target="ITEMS_PER_REPO"
+    Default="10"
+    Mode=""
+    Description="Maximum feed entries to keep per repository."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">10</Config>
+  <Config
+    Name="Max Items in Feed"
+    Target="MAX_ITEMS"
+    Default="500"
+    Mode=""
+    Description="Hard cap on the merged feed after filtering."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">500</Config>
+  <Config
+    Name="Concurrency"
+    Target="CONCURRENCY"
+    Default="8"
+    Mode=""
+    Description="Parallel forge requests during a scan."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">8</Config>
+  <Config
+    Name="Exclude Regex"
+    Target="EXCLUDE"
+    Default=""
+    Mode=""
+    Description="Regex on titles applied to every repo, e.g., '(?i)-rc|beta|alpha|nightly'."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"></Config>
+  <Config
+    Name="Include Stopped Containers"
+    Target="INCLUDE_STOPPED"
+    Default="false"
+    Mode=""
+    Description="Also follow stopped containers (true/false)."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">false</Config>
+  <Config
+    Name="Log Level"
+    Target="LOG_LEVEL"
+    Default="INFO"
+    Mode=""
+    Description="Log level: DEBUG, INFO, WARNING, ERROR."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">INFO</Config>
+  <Config
+    Name="Enable Discovery"
+    Target="DISCOVER"
+    Default="true"
+    Mode=""
+    Description="Enable network lookups for unlabeled images (true/false)."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">true</Config>
+  <Config
+    Name="GitHub Token"
+    Target="GITHUB_TOKEN"
+    Default=""
+    Mode=""
+    Description="Optional GitHub token (no scopes needed) to raise API limit from 60 to 5000/hr for Docker Hub image lookups."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="true"></Config>
+  <Config
+    Name="Host Name"
+    Target="HOST_NAME"
+    Default=""
+    Mode=""
+    Description="Override the Docker host name shown in feed entries (defaults to engine's hostname)."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"></Config>
+  <Config
+    Name="Feed Title"
+    Target="FEED_TITLE"
+    Default="DockFeed"
+    Mode=""
+    Description="Title of the generated Atom feed."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">DockFeed</Config>
+  <Config
+    Name="Public URL"
+    Target="PUBLIC_URL"
+    Default=""
+    Mode=""
+    Description="Base URL for the feed's self link when behind a reverse proxy (e.g., https://dockfeed.example.com)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"></Config>
+</Container>

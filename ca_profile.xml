@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>
+    DockFeed - One Atom feed with the release notes of everything running on your Docker host.
+    DockFeed reads the Docker socket, works out which source repository each container comes from,
+    and merges their release feeds into a single feed you can subscribe to in any reader.
+    When a project doesn't publish releases (or stopped tagging long ago), it follows the commits
+    on the default branch instead. No database, no required API tokens, no config file.
+    Plain Python with a single dependency (feedparser), shipped as a 24 MB scratch image
+    (about 9 MB to download) for amd64, arm64 and armv7.
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/P6g9YHK6/DockFeed/main/assets/icon.png</Icon>
+  <WebPage>https://github.com/P6g9YHK6/DockFeed</WebPage>
+</CommunityApplications>
