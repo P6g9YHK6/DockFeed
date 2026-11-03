@@ -18,13 +18,13 @@ cd "$stdlib"
 # databases, the static libpython used only for embedding.
 rm -rf test idlelib tkinter turtledemo turtle.py ensurepip lib2to3 pydoc_data pydoc.py \
     venv sqlite3 curses dbm unittest doctest.py xmlrpc wsgiref __phello__ _pyrepl \
-    multiprocessing config-"$ver"-* tomllib zoneinfo pdb.py profile.py cProfile.py \
+    multiprocessing config-"$ver"-* tomllib pdb.py profile.py cProfile.py \
     pstats.py trace.py tabnanny.py mailbox.py imaplib.py smtplib.py ftplib.py poplib.py \
     nntplib.py telnetlib.py asyncio ctypes _pydecimal.py bz2.py lzma.py compression/zstd
 cd lib-dynload
 rm -f _tkinter* _sqlite3* _curses* _dbm* _gdbm* _test* xxlimited* _xxtestfuzz* \
     _ctypes_test* readline* _ctypes* _multiprocessing* _posixshmem* _lsprof* \
-    _decimal* _zoneinfo* audioop* _crypt* nis* ossaudiodev* spwd* syslog* \
+    _decimal* audioop* _crypt* nis* ossaudiodev* spwd* syslog* \
     _interpreters* _interpchannels* _interpqueues* xxsubtype* _asyncio* _bz2* _lzma* _zstd* \
     _uuid*
 # Keep the CJK and other codecs: feeds arrive in GB2312, Shift-JIS and friends.
@@ -53,6 +53,11 @@ done
 
 cp -L /etc/ssl/certs/ca-certificates.crt /rootfs/etc/ssl/certs/
 cp -L /etc/ssl/certs/ca-certificates.crt /rootfs/etc/ssl/cert.pem
+
+# Time zones for TZ, without the duplicate posix/ and leap second right/ trees.
+mkdir -p /rootfs/usr/share
+cp -a /usr/share/zoneinfo /rootfs/usr/share/
+rm -rf /rootfs/usr/share/zoneinfo/posix /rootfs/usr/share/zoneinfo/right
 
 # Shared objects carry debug symbols the runtime never reads.
 find /rootfs -name '*.so*' -type f -exec strip --strip-unneeded {} + 2>/dev/null || true

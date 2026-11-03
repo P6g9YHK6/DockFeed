@@ -202,7 +202,7 @@
     Target="SUMMARY_CUTOFF"
     Default="00:00"
     Mode=""
-    Description="Time of day in UTC (HH:MM) that summaries close and go out, all together."
+    Description="Time of day (HH:MM) in the container's TZ, or UTC without one, that summaries close and go out, all together."
     Type="Variable"
     Display="always"
     Required="false"

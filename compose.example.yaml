@@ -19,3 +19,4 @@ services:
       # FEED_TYPE: summary
       # SUMMARY_PERIOD: 24h
       # SUMMARY_CUTOFF: '07:00'
+      # TZ: Europe/Zurich

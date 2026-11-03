@@ -5,10 +5,11 @@ import time
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from dockfeed.app import App, Config, Server, Target, make_handler, parse_clock, parse_duration
+from dockfeed.app import App, Config, Server, Target, make_handler, parse_clock, parse_duration, parse_zone
 from dockfeed.feed import Item
 from dockfeed.forge import NotFoundError
 from dockfeed.source import Container, Repo
@@ -51,6 +52,19 @@ def test_parse_clock(s: str, want: float) -> None:
 def test_parse_clock_rejects(s: str) -> None:
     with pytest.raises(ValueError):
         parse_clock(s)
+
+
+def test_parse_zone(caplog: pytest.LogCaptureFixture) -> None:
+    assert parse_zone("") is UTC and not caplog.records
+    assert parse_zone("Europe/Zurich") == ZoneInfo("Europe/Zurich")
+    for bad in ("Not/AZone", "../etc/passwd", "CET-1CEST,M3.5.0,M10.5.0/3", "Europe"):
+        assert parse_zone(bad) is UTC
+    assert "unknown time zone" in caplog.text
+
+
+def test_config_reads_tz() -> None:
+    assert Config.from_env({}).tz is UTC
+    assert Config.from_env({"TZ": "Europe/Zurich"}).tz == ZoneInfo("Europe/Zurich")
 
 
 def test_config_summary_settings() -> None:
@@ -215,6 +229,18 @@ def test_summary_holds_until_the_cutoff_and_sends_all_together(monkeypatch: pyte
     assert a.status["repos"][0]["held"] == 0 and a.status["repos"][0]["items"] == 1
     assert b"one (summary)" in (a.feed({"container": ["one"]}, "http://x/") or b"")
     assert b"<entry>" not in (a.feed({"kind": ["commit"]}, "http://x/") or b"")
+
+
+def test_cutoff_is_in_the_configured_time_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 07:00 in Zurich is 06:00 UTC in November, an hour before the UTC cutoff in the other tests.
+    now = (CUTOFF - timedelta(minutes=30)).timestamp()
+    monkeypatch.setattr("dockfeed.app.time.time", lambda: now)
+    config = Config(discover=False, feed_type="summary", summary_cutoff=7 * 3600, tz=ZoneInfo("Europe/Zurich"))
+    a = App(config, docker=LabelDocker(), fetcher=FakeFetcher([at(-2, "v1"), at(-0.75, "v2")], []))  # type: ignore[arg-type]
+    a.refresh()
+    assert b"1 new release: v1" in (a.feed({}, "http://x/") or b"")
+    assert a.status["repos"][0]["held"] == 1
+    assert a.status["repos"][0]["next_summary"] == "2026-11-04T07:00:00+01:00"
 
 
 def test_restart_produces_the_same_entries(monkeypatch: pytest.MonkeyPatch) -> None:

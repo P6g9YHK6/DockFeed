@@ -6,6 +6,7 @@ slim.sh fails the build, not the container.
 
 import ssl
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC
 from http.server import ThreadingHTTPServer  # noqa: F401
 from urllib.request import Request
 
@@ -29,7 +30,10 @@ with ThreadPoolExecutor(2) as pool:
     assert list(pool.map(source.parse_repo_url, ["github.com/a/b"])) == [source.Repo("github.com", "a/b")]
 
 app.Config.from_env({"EXCLUDE": "(?i)rc", "REFRESH_INTERVAL": "1h"})
-digests = summary.summarize(source.Repo("github.com", "a/b"), "release", items, 2e9, summary.Schedule(1e9), 10)
+zone = app.parse_zone("Europe/Zurich")
+assert zone is not UTC, "time zones missing"
+assert app.parse_zone("Not/AZone") is UTC
+digests = summary.summarize(source.Repo("github.com", "a/b"), "release", items, 2e9, summary.Schedule(1e9, 0, zone), 10)
 assert digests[0].title.startswith("2 new releases"), digests
 forge.Fetcher("smoke")._request("https://api.github.com/x")
 Request("https://example.com", method="HEAD")

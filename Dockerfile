@@ -1,10 +1,11 @@
 # The runtime is a scratch image holding only the parts of CPython DockFeed
 # needs, see docker/slim.sh.
 FROM python:3.14-alpine AS build
-# binutils is only for strip in slim.sh and never reaches the final image; pinning
-# an Alpine package version breaks on every Alpine point release.
+# binutils is only for strip in slim.sh and never reaches the final image, tzdata
+# gets copied over by it; pinning an Alpine package version breaks on every Alpine
+# point release.
 # hadolint ignore=DL3018
-RUN apk add --no-cache binutils
+RUN apk add --no-cache binutils tzdata
 COPY requirements.lock /tmp/
 RUN pip install --no-cache-dir --require-hashes --target /deps -r /tmp/requirements.lock
 COPY dockfeed /app/dockfeed

@@ -14,10 +14,11 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
+from zoneinfo import ZoneInfo
 
 from . import __version__
 from .discover import Discoverer
@@ -53,6 +54,18 @@ def parse_clock(s: str) -> float:
     return int(m[1]) * 3600 + int(m[2]) * 60
 
 
+def parse_zone(s: str) -> tzinfo:
+    """A time zone from a name like Europe/Zurich, UTC when it's empty or unknown."""
+    if not s:
+        return UTC
+    try:
+        return ZoneInfo(s)
+    except (KeyError, ValueError, OSError):
+        # TZ is usually set for a whole stack and can take forms only libc knows: no reason to refuse to start.
+        log.warning("unknown time zone TZ=%s, summaries use UTC", s)
+        return UTC
+
+
 def _bool(s: str) -> bool:
     v = s.strip().lower()
     if v in ("1", "true", "yes", "on"):
@@ -81,6 +94,7 @@ class Config:
     feed_type: str = "direct"
     summary_period: float = 86400
     summary_cutoff: float = 0
+    tz: tzinfo = UTC
 
     @classmethod
     def from_env(cls, env: dict[str, str] | os._Environ[str] = os.environ) -> Config:
@@ -96,6 +110,7 @@ class Config:
             c.github_token = get("GITHUB_TOKEN", "")
             c.host_name = get("HOST_NAME", "")
             c.feed_type = get("FEED_TYPE", c.feed_type)
+            c.tz = parse_zone(get("TZ", ""))
             c.interval = parse_duration(get("REFRESH_INTERVAL", "1h"))
             c.stale_after = parse_duration(get("STALE_RELEASE_AFTER", "365d"))
             c.summary_period = parse_duration(get("SUMMARY_PERIOD", "24h"))
@@ -167,7 +182,7 @@ class App:
         self.ready = False
         self.host = cfg.host_name
         self._host_warned = False
-        self.schedule = Schedule(cfg.summary_period, cfg.summary_cutoff)
+        self.schedule = Schedule(cfg.summary_period, cfg.summary_cutoff, cfg.tz)
 
     def targets(self, containers: list[Container]) -> tuple[dict[str, Target], dict[str, str], list[str]]:
         targets: dict[str, Target] = {}
@@ -261,8 +276,8 @@ class App:
         digests = summarize(t.repo, kind, items, now, self.schedule, self.cfg.items_per_repo)
         rs["items"] = len(digests)
         rs["held"] = held(items, now, self.schedule)
-        next_cutoff = self.schedule.last_cutoff(now) + self.schedule.period
-        rs["next_summary"] = datetime.fromtimestamp(next_cutoff, UTC).isoformat()
+        next_cutoff = self.schedule.at(self.schedule.index(now) + 1)
+        rs["next_summary"] = datetime.fromtimestamp(next_cutoff, self.schedule.tz).isoformat()
         if digests:
             rs["latest"] = digests[0].updated.isoformat()
         return [FeedEntry(d, label, kind, t.repo, t.containers, t.running, self.host, summary=True) for d in digests]

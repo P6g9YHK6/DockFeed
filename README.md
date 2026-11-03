@@ -102,7 +102,7 @@ A busy container can fill your reader with updates all day. In summary mode Dock
 
 Set `FEED_TYPE=summary` for every container, or `dockfeed.feed=summary` on the ones you want. `dockfeed.feed=direct` does the opposite when `FEED_TYPE=summary`. Containers sharing a repo share one summary, and a label on any of them applies to all of them.
 
-`SUMMARY_CUTOFF` and `SUMMARY_PERIOD` set the schedule for all of them, there's no label for it. The default is every day at 00:00 UTC. `SUMMARY_CUTOFF` is always UTC, whatever `TZ` says. Shorter periods line up on it too, so `6h` with `07:00` means 01:00, 07:00, 13:00 and 19:00. A summary shows up on the first scan after the cutoff, so up to one `REFRESH_INTERVAL` late.
+`SUMMARY_CUTOFF` and `SUMMARY_PERIOD` set the schedule for all of them, there's no label for it. The default is every day at midnight. `SUMMARY_CUTOFF` is in the time zone set by `TZ`, or UTC without one, and stays at that time of day when daylight saving changes (so that day's window is an hour shorter or longer). Shorter periods line up on it too, so `6h` with `07:00` means 01:00, 07:00, 13:00 and 19:00. Longer periods count from 1 Jan 1970, so `48h` fires every second day and `7d` always lands on a Thursday. A summary shows up on the first scan after the cutoff, so up to one `REFRESH_INTERVAL` late.
 
 - No updates means no entry.
 - The feed shows the summaries of the last `ITEMS_PER_REPO` periods.
@@ -143,7 +143,8 @@ Filters run before the staleness check, so a project that only ships filtered-ou
 | `CONCURRENCY` | `8` | Parallel forge requests |
 | `FEED_TYPE` | `direct` | `summary` publishes one entry per period instead of every update. See [Summaries](#summaries) |
 | `SUMMARY_PERIOD` | `24h` | Time between summaries |
-| `SUMMARY_CUTOFF` | `00:00` | Time of day in UTC (`HH:MM`) that summaries close and go out |
+| `SUMMARY_CUTOFF` | `00:00` | Time of day (`HH:MM`) that summaries close and go out |
+| `TZ` | `UTC` | Time zone name for `SUMMARY_CUTOFF`, summary dates and logs, e.g. `Europe/Zurich`. An unknown name logs a warning and uses UTC |
 | `EXCLUDE` | | Regex on titles applied to every repo, e.g. `(?i)-rc\|beta\|alpha\|nightly` |
 | `INCLUDE_STOPPED` | `false` | Also follow stopped containers |
 | `LOG_LEVEL` | `INFO` | `DEBUG` also logs every HTTP request |
@@ -202,7 +203,7 @@ DOCKER_HOST=unix:///tmp/remote.sock python -m dockfeed --once
 
 The code is split by concern, all under `dockfeed/`: `docker.py` (socket client), `source.py` (label and image name rules), `discover.py` (network lookups for unlabeled images), `forge.py` (GitHub, GitLab, Gitea and Forgejo feeds), `feed.py` (Atom and RSS in, Atom out), `summary.py` (folding updates into digests) and `app.py` (config, scan loop, HTTP). Apart from feedparser everything is the standard library.
 
-The image is built from `python:3.14-alpine`, then `docker/slim.sh` copies only what DockFeed needs onto `scratch`: the interpreter, the stdlib minus tests, GUI, REPL, database and other unused modules (as bytecode only), the shared libraries those link against, and the CA bundle. A smoke stage (`docker/smoke.py`) runs inside that filesystem during the build, so pruning too much fails the build rather than the container. If a new import fails in the image only, the module was pruned: take it out of the `rm` lists in `slim.sh`. Tracebacks in the image show no source lines, since only bytecode ships.
+The image is built from `python:3.14-alpine`, then `docker/slim.sh` copies only what DockFeed needs onto `scratch`: the interpreter, the stdlib minus tests, GUI, REPL, database and other unused modules (as bytecode only), the shared libraries those link against, the time zone database and the CA bundle. A smoke stage (`docker/smoke.py`) runs inside that filesystem during the build, so pruning too much fails the build rather than the container. If a new import fails in the image only, the module was pruned: take it out of the `rm` lists in `slim.sh`. Tracebacks in the image show no source lines, since only bytecode ships.
 
 `requirements.lock` is the hash-pinned resolution of `requirements.txt` that the image installs. After changing `requirements.txt`, regenerate it with:
 
