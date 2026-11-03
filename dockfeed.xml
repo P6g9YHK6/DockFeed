@@ -177,44 +177,4 @@
     Display="always"
     Required="false"
     Mask="false"></Config>
-  <Config
-    Name="Feed Type"
-    Target="FEED_TYPE"
-    Default="direct"
-    Mode=""
-    Description="direct publishes every update as it appears. summary publishes one digest per container per period. Override per container with the dockfeed.feed label."
-    Type="Variable"
-    Display="always"
-    Required="false"
-    Mask="false">direct</Config>
-  <Config
-    Name="Summary Period"
-    Target="SUMMARY_PERIOD"
-    Default="24h"
-    Mode=""
-    Description="How long updates are held before being published as one digest (e.g., 12h, 24h, 7d)."
-    Type="Variable"
-    Display="always"
-    Required="false"
-    Mask="false">24h</Config>
-  <Config
-    Name="Data Directory"
-    Target="DATA_DIR"
-    Default="/data"
-    Mode=""
-    Description="Where summaries are saved inside the container so they survive restarts. Leave empty to keep them in memory only."
-    Type="Variable"
-    Display="advanced"
-    Required="false"
-    Mask="false">/data</Config>
-  <Config
-    Name="Data Storage"
-    Target="/data"
-    Default="/mnt/user/appdata/dockfeed"
-    Mode="rw"
-    Description="Host folder for saved summaries. Must be writable by root, since the container runs with all capabilities dropped."
-    Type="Path"
-    Display="advanced"
-    Required="false"
-    Mask="false">/mnt/user/appdata/dockfeed</Config>
 </Container>

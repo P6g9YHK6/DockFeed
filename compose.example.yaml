@@ -7,9 +7,7 @@ services:
       - 8080:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # Keeps buffered summaries over restarts, needs DATA_DIR below.
-      # - dockfeed-data:/data
-    # DockFeed needs no capabilities and only writes to DATA_DIR when it's set.
+    # DockFeed writes nothing to disk and needs no capabilities.
     read_only: true
     cap_drop:
       - ALL
@@ -18,9 +16,3 @@ services:
     environment:
       REFRESH_INTERVAL: 1h
       # EXCLUDE: '(?i)-rc|beta|alpha|nightly'
-      # FEED_TYPE: summary
-      # SUMMARY_PERIOD: 24h
-      # DATA_DIR: /data
-
-# volumes:
-#   dockfeed-data:

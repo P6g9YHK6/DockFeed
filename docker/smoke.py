@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer  # noqa: F401
 from urllib.request import Request
 
-from dockfeed import app, discover, docker, feed, forge, source, summary
+from dockfeed import app, discover, docker, feed, forge, source
 
 atom = b"""<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><id>1</id>
 <title>v1</title><updated>2026-01-01T00:00:00Z</updated><link href="https://x/1"/>
@@ -33,17 +33,6 @@ forge.Fetcher("smoke")._request("https://api.github.com/x")
 Request("https://example.com", method="HEAD")
 docker.DockerClient("unix:///var/run/docker.sock")
 discover.Discoverer(forge.Fetcher("smoke"))
-
-repo = source.Repo("github.com", "a/b")
-store = summary.SummaryStore("/", 1, 10)
-store.observe(repo, "release", [], 0)
-store.observe(repo, "release", items, 0)
-store.flush(repo, 1)
-store.save()
-assert not store.error, store.error
-store = summary.SummaryStore("/", 1, 10)
-store.load()
-assert store.digests(repo)[0].item.title.startswith("2 new releases"), store.digests(repo)
 
 open("/smoke-ok", "w").close()
 print("smoke ok")
