@@ -96,6 +96,29 @@ Commit entries are titled with the commit's first line and show the full message
 
 Supported forges: GitHub, GitLab (gitlab.com and self-hosted), Gitea, Forgejo and Codeberg. Self-hosted instances are detected through their API.
 
+## Summaries
+
+A busy container can fill your reader with updates all day. In summary mode DockFeed holds a container's updates back and publishes them as one entry per period, titled like `sonarr (summary): 3 new releases, latest v4.2`, with the full notes of each update inside.
+
+Set `FEED_TYPE=summary` for every container, or `dockfeed.feed=summary` on the ones you want. `dockfeed.feed=direct` does the opposite when `FEED_TYPE=summary`. Containers sharing a repo share one summary, and a label on any of them applies to all of them.
+
+- The period starts at the first new update, and the summary goes out on the first scan after `SUMMARY_PERIOD` has passed, so it can be up to one `REFRESH_INTERVAL` late. No updates means no entry, and a repo never gets more than one summary per period.
+- The first time a repo is seen, its existing releases or commits are only noted, not published. It has no entries until something new comes out.
+- A release edited after it was seen doesn't count again, and neither does `auto` mode switching between releases and commits.
+- A summary lists the newest 100 updates and says how many more there were. The feed keeps the last `ITEMS_PER_REPO` summaries per repo.
+
+Everything is kept in memory unless you set `DATA_DIR` and mount a volume there, which is the one thing DockFeed ever writes to disk. Without it a restart loses held updates and past summaries, and starts over from the "first time" rule above.
+
+```yaml
+    environment:
+      FEED_TYPE: summary
+      DATA_DIR: /data
+    volumes:
+      - dockfeed-data:/data
+```
+
+A named volume works as is. With `cap_drop: ALL` even root can't write to a folder it doesn't own, so a bind mount must be writable by root. If saving fails DockFeed keeps running in memory, logs a warning and shows `summary_store_error` in `/status`. `/status` also shows each repo's `feed` type, its `pending` updates and `next_summary`.
+
 ## Container labels
 
 | Label | Effect |
@@ -104,6 +127,7 @@ Supported forges: GitHub, GitLab (gitlab.com and self-hosted), Gitea, Forgejo an
 | `dockfeed.source=https://github.com/owner/repo` | Override the detected repo |
 | `dockfeed.mode=releases` | `auto` (default), `releases` or `commits` |
 | `dockfeed.branch=dev` | Branch to follow in commit mode, defaults to the repo's default branch. Handy for images that track `main` or `dev` |
+| `dockfeed.feed=summary` | `direct` or `summary`, overrides `FEED_TYPE`. See [Summaries](#summaries) |
 | `dockfeed.include=^v\d` | Only keep entries whose title matches this regex |
 | `dockfeed.exclude=(?i)rc\|beta` | Drop entries whose title matches, overrides the global `EXCLUDE` |
 
@@ -120,6 +144,9 @@ Filters run before the staleness check, so a project that only ships filtered-ou
 | `ITEMS_PER_REPO` | `10` | |
 | `MAX_ITEMS` | `500` | Cap on the merged feed, applied after `?container=` filtering |
 | `CONCURRENCY` | `8` | Parallel forge requests |
+| `FEED_TYPE` | `direct` | `summary` publishes one entry per period instead of every update. See [Summaries](#summaries) |
+| `SUMMARY_PERIOD` | `24h` | How long updates are held before a summary goes out |
+| `DATA_DIR` | | Folder to save summaries in so they survive restarts. Memory only when empty |
 | `EXCLUDE` | | Regex on titles applied to every repo, e.g. `(?i)-rc\|beta\|alpha\|nightly` |
 | `INCLUDE_STOPPED` | `false` | Also follow stopped containers |
 | `LOG_LEVEL` | `INFO` | `DEBUG` also logs every HTTP request |
@@ -176,7 +203,7 @@ ssh -NL /tmp/remote.sock:/var/run/docker.sock myserver &
 DOCKER_HOST=unix:///tmp/remote.sock python -m dockfeed --once
 ```
 
-The code is split by concern, all under `dockfeed/`: `docker.py` (socket client), `source.py` (label and image name rules), `discover.py` (network lookups for unlabeled images), `forge.py` (GitHub, GitLab, Gitea and Forgejo feeds), `feed.py` (Atom and RSS in, Atom out) and `app.py` (config, scan loop, HTTP). Apart from feedparser everything is the standard library.
+The code is split by concern, all under `dockfeed/`: `docker.py` (socket client), `source.py` (label and image name rules), `discover.py` (network lookups for unlabeled images), `forge.py` (GitHub, GitLab, Gitea and Forgejo feeds), `feed.py` (Atom and RSS in, Atom out), `summary.py` (buffering updates into digests) and `app.py` (config, scan loop, HTTP). Apart from feedparser everything is the standard library.
 
 The image is built from `python:3.14-alpine`, then `docker/slim.sh` copies only what DockFeed needs onto `scratch`: the interpreter, the stdlib minus tests, GUI, REPL, database and other unused modules (as bytecode only), the shared libraries those link against, and the CA bundle. A smoke stage (`docker/smoke.py`) runs inside that filesystem during the build, so pruning too much fails the build rather than the container. If a new import fails in the image only, the module was pruned: take it out of the `rm` lists in `slim.sh`. Tracebacks in the image show no source lines, since only bytecode ships.
 
