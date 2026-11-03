@@ -177,4 +177,34 @@
     Display="always"
     Required="false"
     Mask="false"></Config>
+  <Config
+    Name="Feed Type"
+    Target="FEED_TYPE"
+    Default="direct"
+    Mode=""
+    Description="direct publishes every update as it appears. summary holds updates back and publishes one digest per container at each cutoff. Override per container with the dockfeed.feed label."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">direct</Config>
+  <Config
+    Name="Summary Period"
+    Target="SUMMARY_PERIOD"
+    Default="24h"
+    Mode=""
+    Description="Time between summaries (e.g., 12h, 24h, 7d)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">24h</Config>
+  <Config
+    Name="Summary Cutoff"
+    Target="SUMMARY_CUTOFF"
+    Default="00:00"
+    Mode=""
+    Description="Time of day in UTC (HH:MM) that summaries close and go out, all together."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">00:00</Config>
 </Container>

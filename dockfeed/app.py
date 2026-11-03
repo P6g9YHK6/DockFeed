@@ -25,11 +25,14 @@ from .docker import DockerClient
 from .feed import FeedEntry, Item, commit_message, render_atom
 from .forge import Fetcher, NotFoundError
 from .source import LABEL_PREFIX, Container, Repo, resolve_repo
+from .summary import Schedule, held, summarize
 
 log = logging.getLogger("dockfeed")
 
 _DURATION = re.compile(r"(\d+(?:\.\d+)?)(ms|s|m|h|d)")
 _UNITS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400}
+_CLOCK = re.compile(r"([01]?\d|2[0-3]):([0-5]\d)")
+FEED_TYPES = ("direct", "summary")
 
 
 def parse_duration(s: str) -> float:
@@ -40,6 +43,14 @@ def parse_duration(s: str) -> float:
     if not s or _DURATION.sub("", s):
         raise ValueError(f"invalid duration {s!r}")
     return sum(float(n) * _UNITS[u] for n, u in _DURATION.findall(s))
+
+
+def parse_clock(s: str) -> float:
+    """Seconds past midnight from a time like 07:30."""
+    m = _CLOCK.fullmatch(s.strip())
+    if not m:
+        raise ValueError(f"invalid time {s!r}, expected HH:MM")
+    return int(m[1]) * 3600 + int(m[2]) * 60
 
 
 def _bool(s: str) -> bool:
@@ -67,6 +78,9 @@ class Config:
     host_name: str = ""
     exclude: re.Pattern[str] | None = None
     public_url: str = ""
+    feed_type: str = "direct"
+    summary_period: float = 86400
+    summary_cutoff: float = 0
 
     @classmethod
     def from_env(cls, env: dict[str, str] | os._Environ[str] = os.environ) -> Config:
@@ -81,8 +95,11 @@ class Config:
             c.public_url = get("PUBLIC_URL", "").rstrip("/")
             c.github_token = get("GITHUB_TOKEN", "")
             c.host_name = get("HOST_NAME", "")
+            c.feed_type = get("FEED_TYPE", c.feed_type)
             c.interval = parse_duration(get("REFRESH_INTERVAL", "1h"))
             c.stale_after = parse_duration(get("STALE_RELEASE_AFTER", "365d"))
+            c.summary_period = parse_duration(get("SUMMARY_PERIOD", "24h"))
+            c.summary_cutoff = parse_clock(get("SUMMARY_CUTOFF", "00:00"))
             positive = [
                 ("items_per_repo", "ITEMS_PER_REPO"),
                 ("max_items", "MAX_ITEMS"),
@@ -101,6 +118,10 @@ class Config:
             raise ValueError(f"EXCLUDE: {e}") from e
         if c.interval <= 0:
             raise ValueError("REFRESH_INTERVAL must be positive")
+        if c.summary_period <= 0:
+            raise ValueError("SUMMARY_PERIOD must be positive")
+        if c.feed_type not in FEED_TYPES:
+            raise ValueError(f"FEED_TYPE must be one of {', '.join(FEED_TYPES)}")
         return c
 
     @property
@@ -117,6 +138,7 @@ class Target:
     via: str
     mode: str = "auto"
     branch: str = ""
+    feed: str = "direct"
     containers: list[str] = field(default_factory=list)
     running: str = ""
     include: re.Pattern[str] | None = None
@@ -145,6 +167,7 @@ class App:
         self.ready = False
         self.host = cfg.host_name
         self._host_warned = False
+        self.schedule = Schedule(cfg.summary_period, cfg.summary_cutoff)
 
     def targets(self, containers: list[Container]) -> tuple[dict[str, Target], dict[str, str], list[str]]:
         targets: dict[str, Target] = {}
@@ -166,10 +189,11 @@ class App:
                 unresolved[c.name] = c.image
                 continue
             repo, via = found
-            t = targets.setdefault(str(repo), Target(repo, via))
+            t = targets.setdefault(str(repo), Target(repo, via, feed=self.cfg.feed_type))
             t.containers.append(c.name)
             t.mode = c.labels.get(LABEL_PREFIX + "mode") or t.mode
             t.branch = c.labels.get(LABEL_PREFIX + "branch") or t.branch
+            t.feed = c.labels.get(LABEL_PREFIX + "feed") or t.feed
             for attr in ("include", "exclude"):
                 if v := c.labels.get(LABEL_PREFIX + attr):
                     try:
@@ -186,6 +210,8 @@ class App:
         """Fetch one target, falling back to commits when the repo doesn't publish releases."""
         if t.error:
             raise ValueError(t.error)
+        if t.feed not in FEED_TYPES:
+            raise ValueError(f"unknown {LABEL_PREFIX}feed {t.feed!r}")
         ex = self.cfg.exclude
         if t.mode == "releases":
             return t.keep(self.fetcher.releases(t.repo), ex), "release"
@@ -208,22 +234,38 @@ class App:
             raise
 
     def _fetch(self, t: Target) -> tuple[list[FeedEntry], dict[str, Any]]:
-        rs: dict[str, Any] = {"repo": str(t.repo), "resolved_via": t.via, "containers": t.containers}
+        rs: dict[str, Any] = {"repo": str(t.repo), "resolved_via": t.via, "containers": t.containers, "feed": t.feed}
         items: list[Item] = []
         try:
             items, rs["kind"] = self.collect(t)
         except Exception as e:  # noqa: BLE001 - one broken repo must not sink the scan
             rs["error"] = str(e) or type(e).__name__
             log.warning("fetch failed repo=%s err=%s", t.repo, rs["error"])
-        items = items[: self.cfg.items_per_repo]
+        # A digest takes everything fetched, or a burst past the cap would go missing from it.
+        if t.feed != "summary":
+            items = items[: self.cfg.items_per_repo]
         if rs.get("kind") == "commit":
             items = [commit_message(i) for i in items]
         label = t.containers[0] if len(t.containers) == 1 else t.repo.name
+        if t.feed == "summary":
+            return self._summarize(t, items, label, rs), rs
         rs["items"] = len(items)
         if items:
             rs["latest"] = items[0].updated.isoformat()
         entries = [FeedEntry(i, label, rs.get("kind", ""), t.repo, t.containers, t.running, self.host) for i in items]
         return entries, rs
+
+    def _summarize(self, t: Target, items: list[Item], label: str, rs: dict[str, Any]) -> list[FeedEntry]:
+        now = time.time()
+        kind = rs.get("kind", "")
+        digests = summarize(t.repo, kind, items, now, self.schedule, self.cfg.items_per_repo)
+        rs["items"] = len(digests)
+        rs["held"] = held(items, now, self.schedule)
+        next_cutoff = self.schedule.last_cutoff(now) + self.schedule.period
+        rs["next_summary"] = datetime.fromtimestamp(next_cutoff, UTC).isoformat()
+        if digests:
+            rs["latest"] = digests[0].updated.isoformat()
+        return [FeedEntry(d, label, kind, t.repo, t.containers, t.running, self.host, summary=True) for d in digests]
 
     def refresh(self) -> None:
         start = time.monotonic()

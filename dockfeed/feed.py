@@ -42,6 +42,7 @@ class FeedEntry:
     containers: list[str] = field(default_factory=list)
     running: str = ""
     host: str = ""
+    summary: bool = False
 
 
 def _date(entry: Any) -> datetime:
@@ -111,6 +112,8 @@ def commit_message(item: Item) -> Item:
 
 
 def _headline(e: FeedEntry) -> str:
+    if e.summary:
+        return f"{e.label} (summary): {e.item.title}"
     if e.kind == "commit":
         # Commit titles can be whole messages; the first line is enough for a headline.
         first = e.item.title.split("\n", 1)[0].strip()
@@ -158,6 +161,8 @@ def render_atom(title: str, self_url: str, entries: list[FeedEntry]) -> bytes:
         for c in e.containers:
             sub(entry, "category", term=c)
         sub(entry, "category", term=e.kind)
+        if e.summary:
+            sub(entry, "category", term="summary")
         sub(entry, "content", e.item.content + _footer(e), type="html")
     ET.indent(root)
     return bytes(ET.tostring(root, encoding="utf-8", xml_declaration=True))

@@ -16,3 +16,6 @@ services:
     environment:
       REFRESH_INTERVAL: 1h
       # EXCLUDE: '(?i)-rc|beta|alpha|nightly'
+      # FEED_TYPE: summary
+      # SUMMARY_PERIOD: 24h
+      # SUMMARY_CUTOFF: '07:00'
