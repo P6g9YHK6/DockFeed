@@ -13,7 +13,7 @@ DockFeed reads the Docker socket, works out which source repository each contain
 Complementary to Watchtower (auto-updates) and Diun (notifications), DockFeed gives you the full release notes in one place so you stay informed on your terms.
 
 No database, no required API tokens, no config file. Plain Python with a single dependency (feedparser), shipped as a 24 MB `scratch` image (about 9 MB to download) for amd64, arm64 and armv7.
-<img width="686" height="480" alt="demo" src="https://github.com/user-attachments/assets/f1ae9975-c82a-4292-ba45-d7e719a950b6" />
+<p align="center"><img width="686" height="480" alt="demo" src="https://github.com/user-attachments/assets/f1ae9975-c82a-4292-ba45-d7e719a950b6" /></p>
 
 ## Quick start
 
