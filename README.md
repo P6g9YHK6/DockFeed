@@ -34,11 +34,13 @@ services:
       - no-new-privileges:true
 ```
 
+See [Security](#security) for what limits DockFeed's calls, and for a setup behind a socket proxy.
+
 ### Unraid (Community Applications)
 
 DockFeed is available in [Community Applications](https://unraid.net/community/apps) (search "DockFeed").
 
-The template mounts the Docker socket read-only, drops all capabilities, and runs read-only. A secure, zero-config install that fits right alongside Watchtower or Diun on your Unraid server.
+The template drops all capabilities and runs with a read-only filesystem, and DockFeed itself only ever makes three read-only calls to the Docker API (see [Security](#security)). A zero-config install that fits right alongside Watchtower or Diun on your Unraid server.
 
 Then subscribe to `http://<host>:8080/feed.atom` in your RSS/Atom reader. The first scan takes a few seconds; `/status` shows what was found.
 
@@ -60,7 +62,7 @@ Then subscribe to `http://<host>:8080/feed.atom` in your RSS/Atom reader. The fi
 | `/status` | JSON: every repo, how it was resolved, errors, and which containers couldn't be resolved |
 | `/healthz` | Liveness |
 
-Subscribe with any RSS/Atom reader — the feed works with both.
+Subscribe with any RSS/Atom reader, the feed works with both.
 
 Each entry is titled `<container>: <release>` (or `<container> (commit): <message>`), keeps the original release notes, and ends with a line linking the repo, the containers using it and the host they run on, and the version currently running when the image says so, e.g. `github.com/DIYgod/RSSHub · used by rsshub on Tower · running 2026-10-31`. Containers are also set as Atom categories, so readers that filter on tags can use them.
 
@@ -139,7 +141,7 @@ Filters run before the staleness check, so a project that only ships filtered-ou
 | `LISTEN_ADDR` | `:8080` | |
 | `REFRESH_INTERVAL` | `1h` | `90s`, `30m`, `1h30m`, `1d`... |
 | `STALE_RELEASE_AFTER` | `365d` | `0` never falls back on age |
-| `ITEMS_PER_REPO` | `10` | |
+| `ITEMS_PER_REPO` | `10` | Entries kept per repo, or summaries kept per repo in summary mode |
 | `MAX_ITEMS` | `500` | Cap on the merged feed, applied after `?container=` filtering |
 | `CONCURRENCY` | `8` | Parallel forge requests |
 | `FEED_TYPE` | `direct` | `summary` publishes one entry per period instead of every update. See [Summaries](#summaries) |
@@ -161,22 +163,51 @@ DockFeed makes exactly three calls to the Engine API, all `GET`: `/containers/js
 
 The web server only hands out pages: `GET` and `HEAD` are the only methods it accepts (anything else gets a 405), requests with a body get a 400, URLs over 2 KB get a 414, idle connections time out after 15 seconds and at most 64 are served at once. The `Host` and `X-Forwarded-Proto` headers only make it into the feed's self link when they look like a real host and `http`/`https`. Nothing a client sends is ever passed to Docker.
 
-Note that `:ro` on the socket mount doesn't make the API read-only, it only stops the socket file being replaced. The allowlist above is what limits the calls. If you want that enforced outside DockFeed too, point `DOCKER_HOST` at a socket proxy that only allows `CONTAINERS`, `IMAGES` and `INFO` (leave `INFO` off and set `HOST_NAME` instead if you prefer):
+The allowlist above is what limits the calls. If you want that enforced outside DockFeed too, point `DOCKER_HOST` at a socket proxy that only allows `CONTAINERS`, `IMAGES` and `INFO` (leave `INFO` off and set `HOST_NAME` instead if you prefer), and drop the socket mount from DockFeed. The proxy sits on an internal network that only DockFeed joins, and publishes no ports. This is also in [`compose.socket-proxy.example.yaml`](compose.socket-proxy.example.yaml):
 
 ```yaml
+services:
   socket-proxy:
     image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: socket-proxy
+    restart: unless-stopped
     environment:
       CONTAINERS: 1
       IMAGES: 1
       INFO: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    networks:
+      - docker-api
+
   dockfeed:
     image: ghcr.io/p6g9yhk6/dockfeed:latest
+    container_name: dockfeed
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    ports:
+      - 8080:8080
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
       DOCKER_HOST: tcp://socket-proxy:2375
+    networks:
+      - docker-api
+      - default
+
+networks:
+  docker-api:
+    internal: true
 ```
+
+On Unraid, set the template's Docker Host (under advanced) to the proxy and remove the Docker Socket path.
 
 The feed lists everything you run and which versions, so don't expose it publicly without auth.
 

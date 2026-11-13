@@ -6,6 +6,7 @@ services:
     ports:
       - 8080:8080
     volumes:
+      # For a hard limit on what can be called, see compose.socket-proxy.example.yaml.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     # DockFeed writes nothing to disk and needs no capabilities.
     read_only: true

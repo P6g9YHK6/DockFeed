@@ -20,6 +20,10 @@ jobs:
   # job. A push made with GITHUB_TOKEN doesn't trigger workflows, hence the
   # explicit dispatch, and a run dispatched by GITHUB_TOKEN doesn't fire
   # workflow_run either, so the merge job below would never see it.
+  #
+  # Both jobs pick the PR by the commit that was tested, not by branch name:
+  # --head only matches the name, so a fork PR on a branch called the same
+  # would otherwise be the one that gets merged.
   refresh-lock:
     runs-on: ubuntu-latest
     if: >-
@@ -69,12 +73,13 @@ jobs:
           fi
           gh run watch "$run" --exit-status
 
-          pr=$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number')
+          pr=$(gh pr list --head "$BRANCH" --base main --state open --author app/dependabot \
+            --json number,headRefOid -q ".[] | select(.headRefOid == \"$sha\") | .number" | head -n1)
           if [ -z "$pr" ]; then
-            echo "No open Dependabot PR into main for this branch, nothing to do"
+            echo "No open Dependabot PR into main at $sha, nothing to do"
             exit 0
           fi
-          gh pr merge "$pr" --squash --delete-branch
+          gh pr merge "$pr" --squash --delete-branch --match-head-commit "$sha"
           gh workflow run docker-publish.yml --ref main
 
   merge:
@@ -87,15 +92,18 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
     steps:
       - name: Merge PR
         run: |
-          pr=$(gh pr list --head '${{ github.event.workflow_run.head_branch }}' --base main --state open --json number -q '.[0].number')
+          pr=$(gh pr list --head "$BRANCH" --base main --state open --author app/dependabot \
+            --json number,headRefOid -q ".[] | select(.headRefOid == \"$SHA\") | .number" | head -n1)
           if [ -z "$pr" ]; then
-            echo "No open Dependabot PR into main for this branch, nothing to do"
+            echo "No open Dependabot PR into main at $SHA, nothing to do"
             exit 0
           fi
-          gh pr merge "$pr" --squash --delete-branch
+          gh pr merge "$pr" --squash --delete-branch --match-head-commit "$SHA"
 
       # A merge done with GITHUB_TOKEN doesn't fire push workflows, so the
       # image wouldn't get rebuilt on its own.

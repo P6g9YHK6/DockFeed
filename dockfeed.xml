@@ -32,11 +32,21 @@
     Target="/var/run/docker.sock"
     Default="/var/run/docker.sock"
     Mode="ro"
-    Description="Docker socket for reading container information. Mount read-only for security."
+    Description="Docker socket for reading container information. DockFeed only makes read-only API calls. To enforce that outside DockFeed, run a socket proxy, set Docker Host and remove this path."
     Type="Path"
     Display="always"
-    Required="true"
+    Required="false"
     Mask="false">/var/run/docker.sock</Config>
+  <Config
+    Name="Docker Host"
+    Target="DOCKER_HOST"
+    Default=""
+    Mode=""
+    Description="Docker API to read from instead of the socket, e.g. tcp://socket-proxy:2375. The proxy only needs CONTAINERS, IMAGES and INFO."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"></Config>
   <Config
     Name="Listen Address"
     Target="LISTEN_ADDR"

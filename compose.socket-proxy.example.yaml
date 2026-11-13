@@ -1,0 +1,46 @@
+# DockFeed behind a socket proxy, so the Docker API itself only answers the
+# read-only calls DockFeed needs, whatever DockFeed does.
+services:
+  socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      # Leave INFO off and set HOST_NAME on dockfeed if you prefer.
+      INFO: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    networks:
+      - docker-api
+
+  dockfeed:
+    image: ghcr.io/p6g9yhk6/dockfeed:latest
+    container_name: dockfeed
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    ports:
+      - 8080:8080
+    # No socket mount: every Docker call goes through the proxy.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      DOCKER_HOST: tcp://socket-proxy:2375
+      REFRESH_INTERVAL: 1h
+    networks:
+      - docker-api
+      # For the forge feeds and port 8080.
+      - default
+
+networks:
+  # Internal: only containers on it can reach the proxy, and it has no way out.
+  docker-api:
+    internal: true
