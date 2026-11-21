@@ -42,7 +42,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
 
       - name: Regenerate lock file
         run: uv pip compile requirements.txt -o requirements.lock --python-version 3.14 --generate-hashes
